@@ -1,5 +1,5 @@
 #include "input.c"
 
-bool initSensors();
+void initSensors();
 
 String readSensor(char sensor);

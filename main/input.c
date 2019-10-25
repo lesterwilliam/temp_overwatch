@@ -1,9 +1,8 @@
-bool initSensors() {
+void initSensors() {
   // init sensors on pins SENSOR_FRONT, SENSOR_REAR
   Adafruit_MLX90614 mlx1 = Adafruit_MLX90614();
   Adafruit_MLX90614 mlx2 = Adafruit_MLX90614();
   mlx.begin();
-  return 1;
 }
 
 String readSensor(char sensor) {

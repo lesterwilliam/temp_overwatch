@@ -6,7 +6,7 @@
 #define BLUE 2
 
 // splits RGB into single colors and outputs
-bool outputLED(unsigned char ledNr) {
+void outputLED(unsigned char ledNr) {
   /*if (ledNr == 1) {
     analogWrite(PIN_PWM1_R, *rgb1r);
     analogWrite(PIN_PWM1_G, *rgb1g);
@@ -24,7 +24,7 @@ bool outputLED(unsigned char ledNr) {
   rgbLed2.writeRGB(*rgb2r,*rgb2g,*rgb2b);
 }
 
-bool tempToRGB(int *temp1, int *temp2) {
+void tempToRGB(int *temp1, int *temp2) {
   // calculate rgb components
   if (sensorNr == 1) {
     if (*temp1 < TEMP_MIN) {
@@ -39,9 +39,7 @@ bool tempToRGB(int *temp1, int *temp2) {
       *rgb1r = 0xFF;
       *rgb1b = 0x00;
     } else {
-      return 0;
     }
-    return 1;
   } else if (sensorNr == 2) {
     if (*temp2 < TEMP_MIN) {
       *rgb2r = 0x00;
@@ -55,8 +53,6 @@ bool tempToRGB(int *temp1, int *temp2) {
       *rgb2r = 0xFF;
       *rgb2b = 0x00;
     } else {
-      return 0;
     }
-    return 1;
   }
 }
