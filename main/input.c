@@ -1,3 +1,5 @@
+#include <Adafruit_MLX90614.h>
+
 void initSensors() {
   // init sensors on pins SENSOR_FRONT, SENSOR_REAR
   Adafruit_MLX90614 mlx1 = Adafruit_MLX90614();
