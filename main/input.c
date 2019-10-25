@@ -1,4 +1,5 @@
 #include <Adafruit_MLX90614.h>
+#include <Arduino.h>
 
 void initSensors() {
   // init sensors on pins SENSOR_FRONT, SENSOR_REAR
