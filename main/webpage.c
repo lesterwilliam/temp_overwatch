@@ -12,20 +12,12 @@ bool initWeb() {
 
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send(SPIFFS, "/index2.html");
-      });
-
-  /*server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-   request->send_P(200, "text/html", index_html, processor);
-   });*/
-
-  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send_P(200, "text/plain", String(*temp1).c_str());
+        request->send(SPIFFS, "/index.html");
       });
 
   // from example:
   server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send_P(200, "text/plain", readBME280Temperature().c_str());
+        request->send_P(200, "text/plain", readSensor().c_str());
       });
   // Start web server
   server.begin();
