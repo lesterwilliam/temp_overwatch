@@ -1,4 +1,4 @@
-#include "webpage.c"
+#include "webpage.cpp"
 
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
@@ -77,5 +77,3 @@ setInterval(function ( ) {
 </script>
 </html>
 )rawliteral";
-
-bool initWeb();

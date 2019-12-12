@@ -1,4 +1,6 @@
-#define TEMP_MIN 50
+#include <RGBLED.h>
+
+/*#define TEMP_MIN 50
 #define TEMP_MAX 300
 
 #define RED 0
@@ -7,7 +9,7 @@
 
 // splits RGB into single colors and outputs
 void outputLED(unsigned char ledNr) {
-  /*if (ledNr == 1) {
+  if (ledNr == 1) {
     analogWrite(PIN_PWM1_R, *rgb1r);
     analogWrite(PIN_PWM1_G, *rgb1g);
     analogWrite(PIN_PWM1_B, *rgb1b);
@@ -19,7 +21,7 @@ void outputLED(unsigned char ledNr) {
     return 1;
   } else {
     return 0;
-  }*/
+  }
   rgbLed1.writeRGB(*rgb1r,*rgb1g,*rgb1b);
   rgbLed2.writeRGB(*rgb2r,*rgb2g,*rgb2b);
 }
@@ -55,4 +57,4 @@ void tempToRGB(int *temp1, int *temp2) {
     } else {
     }
   }
-}
+}*/
