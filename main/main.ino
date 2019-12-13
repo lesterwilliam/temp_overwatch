@@ -1,14 +1,8 @@
 // Libraries
-#include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <Hash.h>
-#include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <Adafruit_Sensor.h>
-#include <Wire.h>
 #include <Adafruit_MLX90614.h>
 #include <RGBLED.h>
-#include <SPI.h>
 #include <FS.h>
 
 // RGB pins
@@ -19,10 +13,6 @@
 #define PIN_PWM2_G D5
 #define PIN_PWM2_B D7
 
-// LED number
-#define LED1 1
-#define LED2 2
-
 // Define lower and upper threshold for RGB output in [°C]
 #define TEMP_MIN 25 // full blue at this temperature
 #define TEMP_MAX 50 // full red at this temperature
@@ -30,28 +20,28 @@
 // RGB-Led objects and components
 RGBLED rgbLed1(PIN_PWM1_R,PIN_PWM1_G,PIN_PWM1_B,COMMON_CATHODE);
 RGBLED rgbLed2(PIN_PWM2_R,PIN_PWM2_G,PIN_PWM2_B,COMMON_CATHODE);
-unsigned char rgb1r, rgb1g, rgb1b, rgb2r, rgb2g, rgb2b;
+unsigned char rgb1r, rgb1b, rgb2r, rgb2b;
 
 // MLX sensor objects
 Adafruit_MLX90614 mlx_front = Adafruit_MLX90614();
-Adafruit_MLX90614 mlx_rear = Adafruit_MLX90614();
+Adafruit_MLX90614 mlx_rear =  Adafruit_MLX90614();
 
-//SPIFFS File
+// SPIFFS file system object
 File file;
 
 // WiFi credentials
-const char* ssid     = "ESP8266-Access-Point";
-const char* password = "123456789";
+const char* ssid     = "Temp_overwatch";
+const char* password = "temP_Overwatch7";
 
 // Current temperature, updated in loop()
 int temp_front = 0;
-int temp_rear = 0;
+int temp_rear  = 0;
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
-// run time
-unsigned long run_time = 0;
+// Run time variable
+unsigned long currentMillis = 0;
 
 // Store last timestapts when services got executed
 unsigned long mlx_previousMillis = 0;
@@ -72,7 +62,7 @@ String processor(const String& var){
     return String(temp_rear);
   }
   else if(var == "RUN_TIME"){
-    return String(run_time);
+    return String((int)(currentMillis / 1000));
   }
   return String();
 }
@@ -102,12 +92,6 @@ void TempToRGB() {
 }
 
 void setup(){
-  // Open serial port for debugging purposes
-  Serial.begin(115200);
-
-  // Initialize SPI communication
-  SPI.begin();
-  
   // Initialize SPIFFS
   InitSPIFFS();
   if(SPIFFS.exists("/temp_log.csv")){
@@ -125,15 +109,12 @@ void setup(){
   WiFi.softAP(ssid, password);
   IPAddress IP = WiFi.softAPIP();
 
-  // Print local IP Address
-  Serial.println(WiFi.localIP());
-
   // Define HTTP services
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
   server.on("/run_time", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", String(run_time).c_str());
+    request->send_P(200, "text/plain", String().c_str());
   });
   server.on("/temperature_front", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", String(temp_front).c_str());
@@ -144,14 +125,14 @@ void setup(){
     server.on("/download", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/temp_log.csv", "text/txt");
   });
+  
   // Start web server
   server.begin();
 }
  
 void loop(){
   // MLX service
-  unsigned long currentMillis = millis();
-  run_time = ((int)currentMillis / 1000);
+  currentMillis = millis();
   if (currentMillis - mlx_previousMillis >= mlx_interval) {
     mlx_previousMillis = currentMillis;
     temp_front = (int)mlx_front.readObjectTempC();
@@ -169,8 +150,8 @@ void loop(){
   if (currentMillis - rgb_previousMillis >= rgb_interval) {
     rgb_previousMillis = currentMillis;
     TempToRGB();
-    rgbLed1.writeRGB(rgb1g,rgb1r,rgb1b);
-    rgbLed2.writeRGB(rgb2g,rgb2r,rgb2b);
+    rgbLed1.writeRGB(0x00, rgb1r, rgb1b);
+    rgbLed2.writeRGB(0x00, rgb2r, rgb2b);
   }
 
   // SPIFFS service
