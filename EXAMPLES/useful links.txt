@@ -1,0 +1,6 @@
+/*********
+  https://randomnerdtutorials.com/esp8266-nodemcu-access-point-ap-web-server/
+  https://www.az-delivery.de/blogs/azdelivery-blog-fur-arduino-und-raspberry-pi/esp8266-spiffs-dateisystem
+  https://randomnerdtutorials.com/esp32-esp8266-plot-chart-web-server/
+  https://techtutorialsx.com/2018/10/04/esp32-http-web-server-serving-external-javascript-file/
+*********/

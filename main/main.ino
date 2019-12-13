@@ -1,309 +1,187 @@
-// global libraries
+// Libraries
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
 #include <Hash.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <Adafruit_Sensor.h>
 #include <Wire.h>
 #include <Adafruit_MLX90614.h>
 #include <RGBLED.h>
-
-// local libraries
-#include "webpage.h"
-
-// sensor pins
-#define SENSOR_FRONT 1 // subject to change
-#define SENSOR_REAR 2 // subject to change
+#include <SPI.h>
+#include <FS.h>
 
 // RGB pins
-#define PIN_PWM1_R D1
-#define PIN_PWM1_G D2
-#define PIN_PWM1_B D3
-#define PIN_PWM2_R D5
-#define PIN_PWM2_G D6
+#define PIN_PWM1_R D4
+#define PIN_PWM1_G D3
+#define PIN_PWM1_B D8
+#define PIN_PWM2_R D6
+#define PIN_PWM2_G D5
 #define PIN_PWM2_B D7
 
 // LED number
 #define LED1 1
 #define LED2 2
 
-#define TEMP_MIN 50
-#define TEMP_MAX 300
+// Define lower and upper threshold for RGB output in [°C]
+#define TEMP_MIN 25 // full blue at this temperature
+#define TEMP_MAX 50 // full red at this temperature
 
-#define RED 0
-#define GREEN 1
-#define BLUE 2
+// RGB-Led objects and components
+RGBLED rgbLed1(PIN_PWM1_R,PIN_PWM1_G,PIN_PWM1_B,COMMON_CATHODE);
+RGBLED rgbLed2(PIN_PWM2_R,PIN_PWM2_G,PIN_PWM2_B,COMMON_CATHODE);
+unsigned char rgb1r, rgb1g, rgb1b, rgb2r, rgb2g, rgb2b;
 
-// system defines
-#define LOOP_CYCLE_TIME 1 // delay between loop cycles in ms
-#define SENSOR_READ_CYCLE_TIME 1000
-#define RGB_SET_CYCLE_TIME 100
+// MLX sensor objects
+Adafruit_MLX90614 mlx_front = Adafruit_MLX90614();
+Adafruit_MLX90614 mlx_rear = Adafruit_MLX90614();
 
-IPAddress apIP(42,42,42,42);
+//SPIFFS File
+File file;
 
-const char *ssid = "ESP8266-Access-Point";
-const char *password = "123456789";
+// WiFi credentials
+const char* ssid     = "ESP8266-Access-Point";
+const char* password = "123456789";
 
-// Define a web server at port 80 for HTTP
-ESP8266WebServer server(80);
+// Current temperature, updated in loop()
+int temp_front = 0;
+int temp_rear = 0;
 
-// RGB-Led objects
-RGBLED rgbLed1(PIN_PWM1_R,PIN_PWM1_G,PIN_PWM1_B,COMMON_ANODE);
-RGBLED rgbLed2(PIN_PWM2_R,PIN_PWM2_G,PIN_PWM2_B,COMMON_ANODE);
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
 
-// MLX objects
-Adafruit_MLX90614 mlx1 = Adafruit_MLX90614();
-Adafruit_MLX90614 mlx2 = Adafruit_MLX90614();
-  
-unsigned char *rgb1r, *rgb1g, *rgb1b, *rgb2r, *rgb2g, *rgb2b;
-unsigned char rgb1[3];
-unsigned char rgb2[3];
-int *temp1;
-int *temp2;
+// run time
+unsigned long run_time = 0;
 
-// Updates sensor readings every 10 seconds
-unsigned long previousSensor = 0;
-unsigned long previousRGB = 0;
-const long intervalSensors = 1000;
-const long intervalRGB = 1000;
-const int ledPin = D1; // an LED is connected to NodeMCU pin D1 (ESP8266 GPIO5) via a 1K Ohm resistor
+// Store last timestapts when services got executed
+unsigned long mlx_previousMillis = 0;
+unsigned long rgb_previousMillis = 0;
+unsigned long spiffs_previousMillis = 0;
 
-bool ledState = false;
-// Replaces placeholder with temp values
-String processor(const String& var) {
-  if(var == "TEMPF") {
-    return String(*temp1);
+// Update interval for services in [ms]
+const long mlx_interval = 100;
+const long rgb_interval = 200;
+const long spiffs_interval = 5000;
+
+// Replaces placeholder in HTML with MLX values
+String processor(const String& var){
+  if(var == "TEMPERATURE_FRONT"){
+    return String(temp_front);
   }
-  else if(var == "TEMPR") {
-    return String(*temp2);
+  else if(var == "TEMPERATURE_REAR"){
+    return String(temp_rear);
+  }
+  else if(var == "RUN_TIME"){
+    return String(run_time);
   }
   return String();
 }
-void handleRoot() {
-  digitalWrite (LED_BUILTIN, 0); //turn the built in LED on pin DO of NodeMCU on
-  digitalWrite (ledPin, server.arg("led").toInt());
-  ledState = digitalRead(ledPin);
 
- /* Dynamically generate the LED toggle link, based on its current state (on or off)*/
-  char ledText[80];
+// Initialize File System, start & format
+void InitSPIFFS() {
+  SPIFFS.begin();
+  if (!(SPIFFS.begin())) // Try to format SPIFFS
+  {
+    SPIFFS.format();
+  }
+  if (!(SPIFFS.begin())) // Try again if failed
+  {
+    SPIFFS.format();
+  }
+}
+
+// Converts temperatures to RGB components
+void TempToRGB() {
+  // Front temperature to RGB components
+  rgb1r = (unsigned int) ((temp_front - TEMP_MIN) * 0xFF / (TEMP_MAX - TEMP_MIN));
+  rgb1b = 0xFF - rgb1r;
+
+  // Rear temperature to RGB components
+  rgb2r = (unsigned int) ((temp_rear - TEMP_MIN) * 0xFF / (TEMP_MAX - TEMP_MIN));
+  rgb2b = 0xFF - rgb2r;
+}
+
+void setup(){
+  // Open serial port for debugging purposes
+  Serial.begin(115200);
+
+  // Initialize SPI communication
+  SPI.begin();
   
-  if (ledState) {
-    strcpy(ledText, "LED is on. <a href=\"/?led=0\">Turn it OFF!</a>");
+  // Initialize SPIFFS
+  InitSPIFFS();
+  if(SPIFFS.exists("/temp_log.csv")){
+    SPIFFS.remove("/temp_log.csv");
   }
+  file = SPIFFS.open("/temp_log.csv", "w");
+  file.println("Time [s],Front temp [°C],Rear temp [°C]");
+  file.close();
 
-  else {
-    strcpy(ledText, "LED is OFF. <a href=\"/?led=1\">Turn it ON!</a>");
-  }
- 
-  ledState = digitalRead(ledPin);
+  // Start MLX service
+  mlx_front.begin();
+  mlx_rear.begin();
 
-  char html[1000];
-  int sec = millis() / 1000;
-  int min = sec / 60;
-  int hr = min / 60;
-
-  int brightness = analogRead(A0);
-  brightness = (int)(brightness + 5) / 10; //converting the 0-1024 value to a (approximately) percentage value
-
-// Build an HTML page to display on the web-server root address
-  snprintf ( html, 1000,
-
-"<html>\
-  <head>\
-    <meta http-equiv='refresh' content='10'/>\
-    <title>ESP8266 WiFi Network</title>\
-    <style>\
-      body { background-color: #cccccc; font-family: Arial, Helvetica, Sans-Serif; font-size: 1.5em; Color: #000000; }\
-      h1 { Color: #AA0000; }\
-    </style>\
-  </head>\
-  <body>\
-    <h1>ESP8266 Wi-Fi Access Point and Web Server Demo</h1>\
-    <p>Uptime: %02d:%02d:%02d</p>\
-    <p>Brightness: %d%</p>\
-    <p>%s<p>\
-    <p>This page refreshes every 10 seconds. Click <a href=\"javascript:window.location.reload();\">here</a> to refresh the page now.</p>\
-  </body>\
-</html>",
-
-    hr, min % 60, sec % 60,
-    brightness,
-    ledText
-  );
-  server.send ( 200, "text/html", html );
-  digitalWrite ( LED_BUILTIN, 1 );
-}
-
-void handleNotFound() {
-  digitalWrite ( LED_BUILTIN, 0 );
-  String message = "File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += ( server.method() == HTTP_GET ) ? "GET" : "POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-
-  for ( uint8_t i = 0; i < server.args(); i++ ) {
-    message += " " + server.argName ( i ) + ": " + server.arg ( i ) + "\n";
-  }
-
-  server.send ( 404, "text/plain", message );
-  digitalWrite ( LED_BUILTIN, 1 ); //turn the built in LED on pin DO of NodeMCU off
-}
-/*void initWeb() {
-  Serial.print("Setting AP (Access Point)�");
-
+  // Initialize WiFi service
   WiFi.softAP(ssid, password);
-
   IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(IP);
 
-  // Print ESP8266 Local IP Address
+  // Print local IP Address
   Serial.println(WiFi.localIP());
 
-  // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send(SPIFFS, "/index.html");
-      });
-
-  // from example:
-  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send_P(200, "text/plain", readSensor(1).c_str());
-      });
+  // Define HTTP services
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+  server.on("/run_time", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", String(run_time).c_str());
+  });
+  server.on("/temperature_front", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", String(temp_front).c_str());
+  });
+  server.on("/temperature_rear", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", String(temp_rear).c_str());
+  });
+    server.on("/download", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/temp_log.csv", "text/txt");
+  });
   // Start web server
   server.begin();
-}*/
-
-// splits RGB into single colors and outputs
-int outputLED(unsigned char ledNr) {
-  if (ledNr == 1) {
-    analogWrite(PIN_PWM1_R, *rgb1r);
-    analogWrite(PIN_PWM1_G, *rgb1g);
-    analogWrite(PIN_PWM1_B, *rgb1b);
-    return 1;
-  } else if (ledNr == 2) {
-    analogWrite(PIN_PWM2_R, *rgb2r);
-    analogWrite(PIN_PWM2_G, *rgb2g);
-    analogWrite(PIN_PWM2_B, *rgb2b);
-    return 1;
-  } else {
-    return 0;
-  }
-  rgbLed1.writeRGB(*rgb1r,*rgb1g,*rgb1b);
-  rgbLed2.writeRGB(*rgb2r,*rgb2g,*rgb2b);
 }
-
-void tempToRGB() {
-  // calculate rgb components
-  if (1 == 1) {
-    if (*temp1 < TEMP_MIN) {
-      *rgb1r = 0x00;
-      *rgb1b = 0xFF;
-    } else if (*temp1 >= TEMP_MIN && *temp1 <= TEMP_MAX) {
-      *rgb1r = (unsigned int) ((*temp1 - TEMP_MIN) * 0xFF
-          / (TEMP_MAX - TEMP_MIN));
-      *rgb1b = 0xFF
-          - (unsigned int) ((*temp1 - TEMP_MIN) * 0xFF / (TEMP_MAX - TEMP_MIN));
-    } else if (*temp1 > TEMP_MAX) {
-      *rgb1r = 0xFF;
-      *rgb1b = 0x00;
-    } else {
-    }
-  } else if (2 == 2) {
-    if (*temp2 < TEMP_MIN) {
-      *rgb2r = 0x00;
-      *rgb2b = 0xFF;
-    } else if (*temp2 >= TEMP_MIN && *temp2 <= TEMP_MAX) {
-      *rgb2r = (unsigned int) ((*temp2 - TEMP_MIN) * 0xFF
-          / (TEMP_MAX - TEMP_MIN));
-      *rgb2b = 0xFF
-          - (unsigned int) ((*temp2 - TEMP_MIN) * 0xFF / (TEMP_MAX - TEMP_MIN));
-    } else if (*temp2 > TEMP_MAX) {
-      *rgb2r = 0xFF;
-      *rgb2b = 0x00;
-    } else {
-    }
-  }
-}
-String readSensor(char sensor) {
-  float newT;
-  if(1 == 1){
-    newT = mlx1.readObjectTempC();
-  }
-  if(1 == 2){
-    newT = mlx2.readObjectTempC();
-  }
-  if (isnan(newT)) {
-      Serial.println("Failed to read from BME280 sensor!");
-      return "";
-    }
-    else {
-      Serial.println(newT);
-      return String(newT);
-    }
-}
-
-void setup() {
-  // Serial port for debugging purposes
-  // init SPIFFS
-  //if(!SPIFFS.begin()){
-  //  Serial.println("An Error has occurred while mounting SPIFFS");
-  //}
-
-  //initWeb();
-
-  // initialize outputs
-  // initialize I2C communication
-  // initialize web-server
-  // initialize sensors
-  //mlx1.begin();
-  //mlx2.begin();
-  pinMode ( ledPin, OUTPUT );
-  digitalWrite ( ledPin, 0 );
-  
-  delay(1000);
-  Serial.begin(115200);
-  Serial.println();
-  Serial.println("Configuring access point...");
-
-  //set-up the custom IP address
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));   // subnet FF FF FF 00  
-  
-  /* You can remove the password parameter if you want the AP to be open. */
-  WiFi.softAP(ssid, password);
-
-  IPAddress myIP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(myIP);
  
-  server.on ( "/", handleRoot );
-  server.on ( "/led=1", handleRoot);
-  server.on ( "/led=0", handleRoot);
-  server.on ( "/inline", []() {
-    server.send ( 200, "text/plain", "this works as well" );
-  } );
-  server.onNotFound ( handleNotFound );
-  
-  server.begin();
-  Serial.println("HTTP server started");
-}
+void loop(){
+  // MLX service
+  unsigned long currentMillis = millis();
+  run_time = ((int)currentMillis / 1000);
+  if (currentMillis - mlx_previousMillis >= mlx_interval) {
+    mlx_previousMillis = currentMillis;
+    temp_front = (int)mlx_front.readObjectTempC();
+    temp_rear = (int)mlx_rear.readObjectTempC();
 
-void loop() {
-  /*unsigned long currentMillis = millis();
-
-  if (currentMillis - previousSensor >= intervalSensors) {
-    previousSensor = currentMillis;
-    readSensor(LED1);
-    readSensor(LED2);
+    // this is a fix to write the smaller temp to both positions because only one sensor works
+    int smaller_temp;
+    smaller_temp = temp_front;
+    if(temp_rear < smaller_temp) smaller_temp = temp_rear;
+      temp_front = smaller_temp;
+      temp_rear = smaller_temp;
   }
-  if (currentMillis - previousRGB >= intervalRGB) {
-    previousRGB = currentMillis;
-    tempToRGB();
-    outputLED(1);
-    outputLED(2);
-  }*/
-  server.handleClient();
+
+  // RGB service
+  if (currentMillis - rgb_previousMillis >= rgb_interval) {
+    rgb_previousMillis = currentMillis;
+    TempToRGB();
+    rgbLed1.writeRGB(rgb1g,rgb1r,rgb1b);
+    rgbLed2.writeRGB(rgb2g,rgb2r,rgb2b);
+  }
+
+  // SPIFFS service
+  if (currentMillis - spiffs_previousMillis >= spiffs_interval) {
+    spiffs_previousMillis = currentMillis;
+    file = SPIFFS.open("/temp_log.csv", "a");
+    file.print(String(currentMillis / 1000));
+    file.print(",");
+    file.print(String(temp_front));
+    file.print(",");
+    file.println(String(temp_rear));
+    file.close();
+  }
 }
