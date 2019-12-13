@@ -1,89 +1,88 @@
 <html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    html {
-     font-family: Arial;
-     display: inline-block;
-     margin: 0px auto;
-     text-align: center;
-    }
-    h2 { font-size: 2.5rem; }
-    p { font-size: 2rem; }
-    .units1{
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      html {
+      font-family: Arial;
+      display: inline-block;
+      margin: 0px auto;
+      text-align: center;
+      }
+      h2 { font-size: 2.5rem; }
+      p { font-size: 2rem; }
+      .units1{
       font-size: 2rem;
       vertical-align:middle;
       padding-bottom: 15px;
-    }
-    .units2{
+      }
+      .units2{
       font-size: 1.5rem;
       vertical-align:middle;
       padding-bottom: 10px;
-    }
-    .mlx-labels{
+      }
+      .mlx-labels{
       font-size: 2rem;
       vertical-align:middle;
       padding-bottom: 15px;
-    }
-    .runtime{
+      }
+      .runtime{
       font-size: 1.5rem;
       vertical-align:middle;
       padding-bottom: 10px;
-    }
-  </style>
-</head>
-<body>
-  <h2>Brake temperature overwatch</h2>
-  <p>
-    <span class="runtime">Run time:</span> 
-    <span id="runtime">%RUN_TIME%</span>
-    <sup class="units2">seconds</sup>
-  </p>
-  <p>
-    <span class="mlx-labels">Front Temp.:</span> 
-    <span id="mlx-labels">%TEMPERATURE_FRONT%</span>
-    <sup class="units1">&deg;C</sup>
-  </p>
-  <p>
-    <span class="mlx-labels">Rear Temp.:</span>
-    <span id="mlx-labels">%TEMPERATURE_REAR%</span>
-    <sup class="units1">&deg;C</sup>
-  </p>
-  <button type="button" onclick="location='/download'">Download</button>
-</body>
-
-<script>
-setInterval(function ( ) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("run_time").innerHTML = this.responseText;
-    }
-  };
-  xhttp.open("GET", "/run_time", true);
-  xhttp.send();
-}, 1000 ) ;
-
-setInterval(function ( ) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("temperature_front").innerHTML = this.responseText;
-    }
-  };
-  xhttp.open("GET", "/temperature_front", true);
-  xhttp.send();
-}, 1000 ) ;
-
-setInterval(function ( ) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("temperature_rear").innerHTML = this.responseText;
-    }
-  };
-  xhttp.open("GET", "/temperature_rear", true);
-  xhttp.send();
-}, 1000 ) ;
-</script>
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Brake temperature overwatch</h2>
+    <p>
+      <span class="runtime">Run time:</span> 
+      <span id="runtime">%RUN_TIME%</span>
+      <sup class="units2">seconds</sup>
+    </p>
+    <p>
+      <span class="mlx-labels">Front Temp.:</span> 
+      <span id="mlx-labels">%TEMPERATURE_FRONT%</span>
+      <sup class="units1">&deg;C</sup>
+    </p>
+    <p>
+      <span class="mlx-labels">Rear Temp.:</span>
+      <span id="mlx-labels">%TEMPERATURE_REAR%</span>
+      <sup class="units1">&deg;C</sup>
+    </p>
+    <button type="button" onclick="location='/download'">Download</button>
+  </body>
+  <script>
+    setInterval(function ( ) {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          document.getElementById("run_time").innerHTML = this.responseText;
+        }
+      };
+      xhttp.open("GET", "/run_time", true);
+      xhttp.send();
+    }, 1000 ) ;
+    
+    setInterval(function ( ) {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          document.getElementById("temperature_front").innerHTML = this.responseText;
+        }
+      };
+      xhttp.open("GET", "/temperature_front", true);
+      xhttp.send();
+    }, 1000 ) ;
+    
+    setInterval(function ( ) {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          document.getElementById("temperature_rear").innerHTML = this.responseText;
+        }
+      };
+      xhttp.open("GET", "/temperature_rear", true);
+      xhttp.send();
+    }, 1000 ) ;
+  </script>
 </html>
